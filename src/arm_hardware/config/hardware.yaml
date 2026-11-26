@@ -1,0 +1,12 @@
+hardware_bridge:
+  ros__parameters:
+    port: /dev/ttyUSB0      # Arduino Uno clones: /dev/ttyUSB0, originals: /dev/ttyACM0
+    baudrate: 115200        # must match BAUD in the firmware
+    # Servo i is driven by joint_names[i]  (servo 1 -> pin D9, servo 2 -> pin D10)
+    joint_names: [joint1, joint2]
+    offsets_deg: [90.0, 90.0]   # servo angle that corresponds to 0 rad
+    directions: [1.0, 1.0]      # use -1.0 to flip a servo
+    min_deg: [0.0, 0.0]
+    max_deg: [180.0, 180.0]
+    rate_hz: 50.0
+    startup_delay: 2.0

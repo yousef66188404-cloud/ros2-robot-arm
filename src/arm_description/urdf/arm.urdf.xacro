@@ -1,0 +1,153 @@
+<?xml version="1.0"?>
+<!--
+  4-DOF robotic arm.
+  Chain: world -> base_link -> joint1 -> l1_link -> joint2 -> l2_link
+                -> joint3 -> l3_link -> joint4 -> end_effector
+
+  Dimensions (Figure 1 of the assignment), all in metres:
+    Base 8 cm, L1 12 cm, L2 15 cm, L3 9 cm, end effector 6 cm.
+
+  Args:
+    sim              : true  -> add ros2_control + gz_ros2_control plugin (Gazebo)
+                       false -> pure description (RViz only)
+    controllers_file : absolute path of the ros2_control controllers YAML (sim only)
+-->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="arm">
+
+  <xacro:arg name="sim" default="false"/>
+  <xacro:arg name="controllers_file" default=""/>
+
+  <!-- ===== Dimensions (m) ===== -->
+  <xacro:property name="base_h" value="0.08"/>
+  <xacro:property name="base_r" value="0.05"/>
+  <xacro:property name="l1_h"   value="0.12"/>
+  <xacro:property name="l2_h"   value="0.15"/>
+  <xacro:property name="l3_h"   value="0.09"/>
+  <xacro:property name="ee_h"   value="0.06"/>
+  <xacro:property name="link_r" value="0.02"/>
+  <xacro:property name="ee_w"   value="0.03"/>
+
+  <!-- ===== Joint limits: +-90 deg so they map 1:1 to a 0..180 deg servo ===== -->
+  <xacro:property name="lim"      value="1.5708"/>
+  <xacro:property name="j_effort" value="10.0"/>
+  <xacro:property name="j_vel"    value="2.0"/>
+
+  <!-- ===== Materials ===== -->
+  <material name="grey"><color rgba="0.45 0.45 0.50 1"/></material>
+  <material name="blue"><color rgba="0.15 0.35 0.80 1"/></material>
+  <material name="orange"><color rgba="0.95 0.55 0.10 1"/></material>
+  <material name="green"><color rgba="0.20 0.65 0.30 1"/></material>
+  <material name="red"><color rgba="0.80 0.15 0.15 1"/></material>
+
+  <!-- ===== Macros ===== -->
+  <!-- Cylinder link whose frame is at the bottom centre; it extends along +Z. -->
+  <xacro:macro name="cyl_link" params="name m r h color">
+    <link name="${name}">
+      <visual>
+        <origin xyz="0 0 ${h/2}" rpy="0 0 0"/>
+        <geometry><cylinder radius="${r}" length="${h}"/></geometry>
+        <material name="${color}"/>
+      </visual>
+      <collision>
+        <origin xyz="0 0 ${h/2}" rpy="0 0 0"/>
+        <geometry><cylinder radius="${r}" length="${h}"/></geometry>
+      </collision>
+      <inertial>
+        <origin xyz="0 0 ${h/2}" rpy="0 0 0"/>
+        <mass value="${m}"/>
+        <inertia ixx="${m*(3*r*r+h*h)/12}" ixy="0" ixz="0"
+                 iyy="${m*(3*r*r+h*h)/12}" iyz="0"
+                 izz="${m*r*r/2}"/>
+      </inertial>
+    </link>
+  </xacro:macro>
+
+  <!-- Box link whose frame is at the bottom centre; it extends along +Z. -->
+  <xacro:macro name="box_link" params="name m w h color">
+    <link name="${name}">
+      <visual>
+        <origin xyz="0 0 ${h/2}" rpy="0 0 0"/>
+        <geometry><box size="${w} ${w} ${h}"/></geometry>
+        <material name="${color}"/>
+      </visual>
+      <collision>
+        <origin xyz="0 0 ${h/2}" rpy="0 0 0"/>
+        <geometry><box size="${w} ${w} ${h}"/></geometry>
+      </collision>
+      <inertial>
+        <origin xyz="0 0 ${h/2}" rpy="0 0 0"/>
+        <mass value="${m}"/>
+        <inertia ixx="${m*(w*w+h*h)/12}" ixy="0" ixz="0"
+                 iyy="${m*(w*w+h*h)/12}" iyz="0"
+                 izz="${m*(w*w+w*w)/12}"/>
+      </inertial>
+    </link>
+  </xacro:macro>
+
+  <xacro:macro name="rev_joint" params="name parent child z axis">
+    <joint name="${name}" type="revolute">
+      <parent link="${parent}"/>
+      <child link="${child}"/>
+      <origin xyz="0 0 ${z}" rpy="0 0 0"/>
+      <axis xyz="${axis}"/>
+      <limit lower="${-lim}" upper="${lim}" effort="${j_effort}" velocity="${j_vel}"/>
+      <dynamics damping="0.3" friction="0.05"/>
+    </joint>
+  </xacro:macro>
+
+  <!-- ===== Links ===== -->
+  <link name="world"/>
+  <joint name="world_to_base" type="fixed">
+    <parent link="world"/>
+    <child link="base_link"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+  </joint>
+
+  <xacro:cyl_link name="base_link" m="0.60" r="${base_r}" h="${base_h}" color="grey"/>
+  <xacro:cyl_link name="l1_link"   m="0.15" r="${link_r}" h="${l1_h}"   color="blue"/>
+  <xacro:cyl_link name="l2_link"   m="0.20" r="${link_r}" h="${l2_h}"   color="orange"/>
+  <xacro:cyl_link name="l3_link"   m="0.12" r="${link_r}" h="${l3_h}"   color="green"/>
+  <xacro:box_link name="end_effector" m="0.05" w="${ee_w}" h="${ee_h}"  color="red"/>
+
+  <!-- ===== Joints (zero pose = arm straight up) ===== -->
+  <!-- joint1: base rotation about Z; joints 2-4 pitch about Y -->
+  <xacro:rev_joint name="joint1" parent="base_link" child="l1_link"      z="${base_h}" axis="0 0 1"/>
+  <xacro:rev_joint name="joint2" parent="l1_link"   child="l2_link"      z="${l1_h}"   axis="0 1 0"/>
+  <xacro:rev_joint name="joint3" parent="l2_link"   child="l3_link"      z="${l2_h}"   axis="0 1 0"/>
+  <xacro:rev_joint name="joint4" parent="l3_link"   child="end_effector" z="${l3_h}"   axis="0 1 0"/>
+
+  <!-- ===== ros2_control + Gazebo (simulation only) ===== -->
+  <xacro:macro name="joint_iface" params="name">
+    <joint name="${name}">
+      <command_interface name="position">
+        <param name="min">${-lim}</param>
+        <param name="max">${lim}</param>
+      </command_interface>
+      <state_interface name="position">
+        <param name="initial_value">0.0</param>
+      </state_interface>
+      <state_interface name="velocity"/>
+      <state_interface name="effort"/>
+    </joint>
+  </xacro:macro>
+
+  <xacro:if value="$(arg sim)">
+    <ros2_control name="GazeboSimSystem" type="system">
+      <hardware>
+        <plugin>gz_ros2_control/GazeboSimSystem</plugin>
+      </hardware>
+      <xacro:joint_iface name="joint1"/>
+      <xacro:joint_iface name="joint2"/>
+      <xacro:joint_iface name="joint3"/>
+      <xacro:joint_iface name="joint4"/>
+    </ros2_control>
+
+    <gazebo>
+      <plugin filename="gz_ros2_control-system"
+              name="gz_ros2_control::GazeboSimROS2ControlPlugin">
+        <parameters>$(arg controllers_file)</parameters>
+      </plugin>
+    </gazebo>
+  </xacro:if>
+
+</robot>
